@@ -11,11 +11,10 @@ from iglovikov_helper_functions.config_parsing.utils import object_from_dict
 from iglovikov_helper_functions.dl.pytorch.lightning import find_average
 from iglovikov_helper_functions.dl.pytorch.utils import state_dict_from_disk
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_toolbelt.losses import JaccardLoss, BinaryFocalLoss
+from pytorch_toolbelt.losses import JaccardLoss, BinaryFocalLoss, multiclass_dice_iou_score
 from torch.utils.data import DataLoader
 
 from people_segmentation.dataloaders import SegmentationDataset
-from people_segmentation.metrics import binary_mean_iou
 from people_segmentation.utils import get_samples
 
 train_path = Path(os.environ["TRAIN_PATH"])
@@ -45,8 +44,8 @@ class SegmentPeople(pl.LightningModule):
             self.model.load_state_dict(state_dict)
 
         self.losses = [
-            ("jaccard", 0.1, JaccardLoss(mode="binary", from_logits=True)),
-            ("focal", 0.9, BinaryFocalLoss()),
+            ("jaccard", 0.1, JaccardLoss(mode="multiclass", from_logits=True)),
+            ("focal", 0.9, FocalLoss()),
         ]
 
     def forward(self, batch: torch.Tensor) -> torch.Tensor:  # type: ignore
@@ -156,7 +155,7 @@ class SegmentPeople(pl.LightningModule):
 
         dataset_type = self.val_dataset_names[dataloader_idx]
 
-        result[f"{dataset_type}_val_iou"] = binary_mean_iou(logits, masks)
+        result[f"{dataset_type}_val_iou"] = multiclass_dice_iou_score(logits, masks)
 
         return result
 
