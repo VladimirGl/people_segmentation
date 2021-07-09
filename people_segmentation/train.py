@@ -11,11 +11,13 @@ from iglovikov_helper_functions.config_parsing.utils import object_from_dict
 from iglovikov_helper_functions.dl.pytorch.lightning import find_average
 from iglovikov_helper_functions.dl.pytorch.utils import state_dict_from_disk
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_toolbelt.losses import JaccardLoss, BinaryFocalLoss, multiclass_dice_iou_score
+from pytorch_toolbelt.losses import JaccardLoss, FocalLoss
+#from pytorch_toolbelt.utils.catalyst.metrics import multiclass_dice_iou_score
 from torch.utils.data import DataLoader
 
 from people_segmentation.dataloaders import SegmentationDataset
 from people_segmentation.utils import get_samples
+from people_segmentation.metrics import multiclass_dice_iou_score
 
 train_path = Path(os.environ["TRAIN_PATH"])
 val_path = Path(os.environ["VAL_PATH"])
@@ -31,7 +33,7 @@ def get_args():
 class SegmentPeople(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
-        self.hparams = hparams
+        self.hparams.update(hparams)
 
         self.model = object_from_dict(self.hparams["model"])
         if "resume_from_checkpoint" in self.hparams:
@@ -73,6 +75,7 @@ class SegmentPeople(pl.LightningModule):
 
     def train_dataloader(self):
         train_aug = from_dict(self.hparams["train_aug"])
+        degrad_aug = from_dict(self.hparams["degradation_aug"])
 
         if "epoch_length" not in self.hparams["train_parameters"]:
             epoch_length = None
@@ -80,7 +83,7 @@ class SegmentPeople(pl.LightningModule):
             epoch_length = self.hparams["train_parameters"]["epoch_length"]
 
         result = DataLoader(
-            SegmentationDataset(self.train_samples, train_aug, epoch_length),
+            SegmentationDataset(self.train_samples, train_aug, degrad_aug, epoch_length),
             batch_size=self.hparams["train_parameters"]["batch_size"],
             num_workers=self.hparams["num_workers"],
             shuffle=True,
@@ -110,11 +113,13 @@ class SegmentPeople(pl.LightningModule):
         return result
 
     def configure_optimizers(self):
+        print("OPTIM:", self.hparams["optimizer"])
         optimizer = object_from_dict(
             self.hparams["optimizer"],
             params=[x for x in self.model.parameters() if x.requires_grad],
         )
 
+        print(self.hparams["scheduler"])
         scheduler = object_from_dict(self.hparams["scheduler"], optimizer=optimizer)
         self.optimizers = [optimizer]
 
@@ -177,9 +182,10 @@ def main():
     with open(args.config_path) as f:
         hparams = yaml.load(f, Loader=yaml.SafeLoader)
 
+    print(hparams)
     pipeline = SegmentPeople(hparams)
 
-    Path(hparams["checkpoint_callback"]["filepath"]).mkdir(exist_ok=True, parents=True)
+    Path(hparams["checkpoint_callback"]["dirpath"]).mkdir(exist_ok=True, parents=True)
 
     trainer = object_from_dict(
         hparams["trainer"],

@@ -15,7 +15,7 @@ class SegmentationDataset(Dataset):
         self,
         samples: List[Tuple[Path, Path]],
         transform: albu.Compose,
-        deg_transform: albu.Compose,
+        deg_transform: albu.Compose = None,
         length: int = None,
     ) -> None:
         self.samples = samples
@@ -41,13 +41,15 @@ class SegmentationDataset(Dataset):
         # apply augmentations
         sample = self.transform(image=image, mask=mask)
         image, mask = sample["image"], sample["mask"]
-        
-        degraded_sample = self.deg_transform(image=image, mask=mask)
-        degraded_image, degraded_mask = degraded_sample["image"], degraded_sample["mask"]
+        if self.deg_transform is not None:
+            degraded_sample = self.deg_transform(image=image, mask=mask)
+            degraded_image, degraded_mask = degraded_sample["image"], degraded_sample["mask"]
+        else:
+            degraded_image = image
+            degraded_mask = mask
 
-        mask = torch.from_numpy(mask)
         degraded_mask = torch.from_numpy(degraded_mask)
-
+        mask = torch.from_numpy(mask)
         return {
             "image_id": image_path.stem,
             "features": tensor_from_rgb_image(degraded_image),

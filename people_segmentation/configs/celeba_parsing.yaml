@@ -18,8 +18,8 @@ model:
 
 trainer:
   type: pytorch_lightning.Trainer
-  early_stop_callback: False
-  gpus: 4
+#  early_stop_callback: False
+  gpus: 1
 #  amp_level: O1
   max_epochs: 30
   distributed_backend: ddp
@@ -42,7 +42,7 @@ train_parameters:
 
 checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
-  filepath: "2021-07-09"
+  dirpath: "2021-07-09"
   monitor: val_loss
   verbose: True
   mode: min
@@ -156,12 +156,12 @@ val_aug:
     transforms:
       - __class_fullname__: albumentations.augmentations.transforms.LongestMaxSize
         always_apply: False
-        max_size: 800
+        max_size: 384
         p: 1
       - __class_fullname__: albumentations.augmentations.transforms.PadIfNeeded
         always_apply: False
-        min_height: 800
-        min_width: 800
+        min_height: 384
+        min_width: 384
         border_mode: 0 # cv2.BORDER_CONSTANT
         value: 0
         mask_value: 0
