@@ -134,7 +134,10 @@ class SegmentPeople(pl.LightningModule):
         total_loss = 0
         logs = {}
         for loss_name, weight, loss in self.losses:
-            ls_mask = loss(logits, masks)
+            if loss_name == 'focal':
+                ls_mask = loss(logits, masks.long().squeeze(dim=1))
+            else:
+                ls_mask = loss(logits, masks.long())
             total_loss += weight * ls_mask
             logs[f"train_mask_{loss_name}"] = ls_mask
 
@@ -148,7 +151,7 @@ class SegmentPeople(pl.LightningModule):
         lr = [x["lr"] for x in self.optimizers[0].param_groups][0]  # type: ignore
         return torch.Tensor([lr])[0].cuda()
 
-    def validation_step(self, batch, batch_id, dataloader_idx):
+    def validation_step(self, batch, batch_id, dataloader_idx=0):
         features = batch["features"]
         masks = batch["masks"]
 
@@ -156,7 +159,10 @@ class SegmentPeople(pl.LightningModule):
 
         result = {}
         for loss_name, _, loss in self.losses:
-            result[f"val_mask_{loss_name}"] = loss(logits, masks)
+            if loss_name == 'focal':
+                result[f"val_mask_{loss_name}"] = loss(logits, masks.long().squeeze(dim=1))
+            else:
+                result[f"val_mask_{loss_name}"] = loss(logits, masks.long())
 
         dataset_type = self.val_dataset_names[dataloader_idx]
 
@@ -168,10 +174,10 @@ class SegmentPeople(pl.LightningModule):
         logs = {"epoch": self.trainer.current_epoch}
 
         for output_id, output in enumerate(outputs):
-            dataset_type = self.val_dataset_names[output_id]
-            avg_val_iou = find_average(output, f"{dataset_type}_val_iou")
-
-            logs[f"{dataset_type}_val_iou"] = avg_val_iou
+           # dataset_type = self.val_dataset_names[output_id]
+           # avg_val_iou = find_average(output, f"{dataset_type}_val_iou")
+            avg_val_iou = output['celeba_val_iou']
+            logs[f"{output_id}_val_iou"] = avg_val_iou
 
         return {"val_iou": avg_val_iou, "log": logs}
 
